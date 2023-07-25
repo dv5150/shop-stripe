@@ -9,22 +9,35 @@ class InstallCommand extends Command
 {
     protected $signature = 'shop:install:stripe';
 
-    protected $description = 'Install the Stripe payment method for Laravel shop package.';
+    protected $description = 'Install the Stripe payment method for Laravel Webshop package.';
 
-    protected array $todoAfterInstall = [
+    protected array $todos = [
         'Please update the shop-stripe.php config file with your Stripe access keys.',
         'Please update the price and active status of your newly created Payment Mode entity.',
     ];
 
     public function handle()
     {
+        $this->installConfig();
+        $this->installPaymentMethod();
+
+        $this->afterHandle();
+
+        return self::SUCCESS;
+    }
+
+    protected function installConfig(): void
+    {
         $this->info('Publishing config file...');
 
         $this->callSilently("vendor:publish", [
             '--tag' => "shop-stripe-config",
         ]);
+    }
 
-        $this->info('Creating matching payment method entity...');
+    protected function installPaymentMethod(): void
+    {
+        $this->info('Creating Stripe payment method entity...');
 
         config('shop.models.paymentMode')::create([
             'provider' => StripeProvider::getProvider(),
@@ -33,20 +46,14 @@ class InstallCommand extends Command
             'price_gross' => 0.0,
             'is_active' => false,
         ]);
-
-        $this->info('Installation complete.');
-
-        $this->displayWarningMessages();
-
-        return self::SUCCESS;
     }
 
-    protected function displayWarningMessages(): void
+    protected function afterHandle(): void
     {
-        $count = count($this->todoAfterInstall);
+        $this->info('Installation complete.');
 
-        for ($i = 1; $i <= $count; $i++) {
-            $this->warn("[$i/$count] {$this->todoAfterInstall[$i-1]}");
+        for ($i = 1; $i <= $count = count($this->todos); $i++) {
+            $this->warn("[$i/$count] {$this->todos[$i-1]}");
         }
     }
 }

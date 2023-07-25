@@ -2,6 +2,14 @@
     "name": "dv5150/shop-stripe",
     "description": "Stripe payment provider for Laravel shop package",
     "license": "MIT",
+    "keywords": [
+        "laravel",
+        "shop",
+        "laravel-shop",
+        "webshop",
+        "payment",
+        "stripe"
+    ],
     "autoload": {
         "psr-4": {
             "DV5150\\Shop\\Stripe\\": "src/",
@@ -11,9 +19,12 @@
     "authors": [
         {
             "name": "David Szabados",
-            "email": "dv5150dev@gmail.com"
+            "email": "dv5150dev@gmail.com",
+            "homepage": "https://dv5150.github.io",
+            "role": "Developer"
         }
     ],
+    "homepage": "https://github.com/dv5150/shop-stripe",
     "repositories": {
         "shop": {
             "type": "path",
@@ -24,12 +35,19 @@
         }
     },
     "require": {
-        "php": "^8.0",
+        "php": "^8.1",
         "stripe/stripe-php": "^10.16",
         "dv5150/shop": "@dev"
     },
     "require-dev": {
-        "phpunit/phpunit": "^9.6"
+        "phpunit/phpunit": "^9.6",
+        "pestphp/pest": "^1.23",
+        "orchestra/testbench": "^6",
+        "pestphp/pest-plugin-laravel": "^1.4"
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage"
     },
     "extra": {
         "laravel": {
@@ -40,7 +58,8 @@
     },
     "config": {
         "allow-plugins": {
-            "php-http/discovery": true
+            "php-http/discovery": true,
+            "pestphp/pest-plugin": true
         }
     }
 }
