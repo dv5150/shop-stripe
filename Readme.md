@@ -36,3 +36,14 @@ class AppServiceProvider extends ServiceProvider
     }
 }
 ```
+---
+
+## Development helpers
+
+Listen to the successful payment webhooks locally:
+
+`docker run --network="host" --rm -it stripe/stripe-cli listen --forward-to https://webshop.test/api/shop/payment/stripe/webhook --skip-verify --api-key <secret_key> --events=checkout.session.completed`
+
+Trigger successful payment events:
+
+`docker run --rm -it stripe/stripe-cli trigger checkout.session.completed --api-key <secret_key>`
