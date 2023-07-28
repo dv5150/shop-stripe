@@ -12,8 +12,8 @@ class InstallCommand extends Command
     protected $description = 'Install the Stripe payment method for Laravel Webshop package.';
 
     protected array $todos = [
-        'Please update the shop-stripe.php config file with your Stripe access keys.',
-        'Please update the price and active status of your newly created Payment Mode entity.',
+        'Update the shop-stripe.php config file with your Stripe access keys.',
+        'Update the price and active status of your newly created Payment Mode entity.',
     ];
 
     public function handle()

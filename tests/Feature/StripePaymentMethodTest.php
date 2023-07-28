@@ -2,50 +2,28 @@
 
 namespace DV5150\Shop\Stripe\Tests\Feature;
 
-use DV5150\Shop\Contracts\Models\PaymentModeContract;
-use DV5150\Shop\Contracts\Models\SellableItemContract;
-use DV5150\Shop\Contracts\Models\ShippingModeContract;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\File;
+use function Pest\Laravel\get;
 use function Pest\Laravel\post;
 
 it('redirects to the external payment service', function () {
-    /**
-     * @var SellableItemContract $productA
-     * @var SellableItemContract $productB
-     */
-    list($productA, $productB) = $this->productClass::factory()
-        ->count(2)
-        ->create()
-        ->all();
+    get($this->redirectUrl)->assertRedirectContains('https://checkout.stripe.com');
+});
 
-    /** @var ShippingModeContract $shippingMode */
-    $shippingMode = config('shop.models.shippingMode')::factory()
-        ->create();
+it('receives webhook from stripe and saves a payment record for the order', function () {
+    $testResponse = json_decode(File::get(__DIR__.'/../test_response.json'), true);
 
-    /** @var PaymentModeContract $paymentMode */
-    $paymentMode = config('shop.models.paymentMode')::factory()
-        ->online()
-        ->create(['provider' => 'stripe']);
+    Arr::set($testResponse, 'data.object.metadata.order_id', $this->order->getKey());
 
-    $shippingMode->paymentModes()->sync($paymentMode);
+    post(route('api.shop.payment.webhook', [
+        'paymentProvider' => 'stripe'
+    ]), $testResponse);
 
-    $response = post(route('api.shop.checkout.store'), array_merge($this->testOrderDataRequired, [
-        'cartData' => [
-            [
-                'item' => ['id' => $productA->getKey()],
-                'quantity' => 2,
-            ],
-            [
-                'item' => ['id' => $productB->getKey()],
-                'quantity' => 4,
-            ],
-        ],
-        'shippingMode' => [
-            'provider' => $shippingMode->getProvider(),
-        ],
-        'paymentMode' => [
-            'provider' => 'stripe',
-        ],
-    ]));
-
-    dd($response->getContent());
+    expect(
+        config('shop.models.payment')::query()
+            ->where('intent_id', Arr::get($testResponse, 'data.object.payment_intent'))
+            ->where('order_id', $this->order->getKey())
+            ->exists()
+    )->toBeTrue();
 });

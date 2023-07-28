@@ -33,5 +33,7 @@
         <server name="DB_USERNAME" value="root"/>
         <server name="DB_PASSWORD" value="supersecret"/>
         <env name="APP_KEY" value="base64:2fl+Ktvkfl+Fuz4Qp/A75G2RTiWVA/ZoKZvp6fiiM10=" />
+        <env name="SHOP_STRIPE_SANDBOX_SECRET" value=""/>
+        <env name="SHOP_STRIPE_SANDBOX_WEBHOOK_SECRET" value=""/>
     </php>
 </phpunit>

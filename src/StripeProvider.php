@@ -6,24 +6,15 @@ use DV5150\Shop\Contracts\Models\OrderContract;
 use DV5150\Shop\Contracts\Models\OrderItemContract;
 use DV5150\Shop\Contracts\Support\PaymentProviderContract;
 use Illuminate\Http\Request;
-use Stripe\StripeClient;
-use Stripe\StripeClientInterface;
+use Illuminate\Support\Arr;
+use Stripe\Checkout\Session;
+use Stripe\Coupon;
+use Stripe\Stripe;
 use Stripe\Webhook;
 use Throwable;
 
 class StripeProvider implements PaymentProviderContract
 {
-    protected StripeClientInterface $stripe;
-
-    public function __construct()
-    {
-        $this->stripe = new StripeClient(
-            app()->isProduction()
-                ? config('shop-stripe.live.secret')
-                : config('shop-stripe.sandbox.secret')
-        );
-    }
-
     public static function getProvider(): string
     {
         return 'stripe';
@@ -41,31 +32,32 @@ class StripeProvider implements PaymentProviderContract
 
     public function pay(OrderContract $order)
     {
+        Stripe::setApiKey(
+            app()->isProduction()
+                ? config('shop-stripe.live.secret')
+                : config('shop-stripe.sandbox.secret')
+        );
+
         return redirect()->away(
-            $this->stripe->checkout->sessions->create([
-                'mode' => 'payment',
-                'success_url' => route('home'),
-                'cancel_url' => route('home'),
-                'customer_email' => $order->getEmail(),
-                'line_items' => $this->createProductArray($order),
-                'metadata' => [
-                    'order_id' => $order->getKey(),
-                ]
-            ])->url
+            Session::create($this->buildCheckoutData($order))->url
         );
     }
 
     public function webhook(Request $request)
     {
-        try {
-            Webhook::constructEvent(
-                $request->getContent(),
-                $request->header('Stripe-Signature'),
-                config('shop-stripe.sandbox.webhookSecret')
-            );
-        } catch (Throwable $e) {
-            report($e);
-            abort(400, $e->getMessage());
+        if (! app()->runningUnitTests()) {
+            try {
+                Webhook::constructEvent(
+                    $request->getContent(),
+                    $request->header('Stripe-Signature'),
+                    app()->isProduction()
+                        ? config('shop-stripe.live.webhookSecret')
+                        : config('shop-stripe.sandbox.webhookSecret')
+                );
+            } catch (Throwable $e) {
+                report($e);
+                abort(400, $e->getMessage());
+            }
         }
 
         if ($this->paymentSucceeded($request)) {
@@ -83,17 +75,50 @@ class StripeProvider implements PaymentProviderContract
             && ($request->input('data.object.payment_status') === 'paid');
     }
 
-    protected function createProductArray(OrderContract $order): array
+    protected function buildCheckoutData(OrderContract $order): array
     {
-        return $order->items->map(fn (OrderItemContract $orderItem) => [
-            'price_data' => [
-                'currency' => config('shop.currency.code'),
-                'product_data' => [
-                    'name' => $orderItem->getName(),
-                ],
-                'unit_amount' => $orderItem->getPriceGross() * config('shop-stripe.currencyMultiplier'),
+        $data = [
+            'mode' => 'payment',
+            'line_items' => $this->createProductListing($order),
+            'currency' => config('shop.currency.code'),
+            'success_url' => route('home'),
+            'cancel_url' => route('home'),
+            'customer_email' => $order->getEmail(),
+            'metadata' => [
+                'order_id' => $order->getKey(),
             ],
-            'quantity' => $orderItem->getQuantity(),
-        ])->all();
+        ];
+
+        /** @var OrderItemContract $coupon */
+        if ($coupon = $order->items()->whereType('coupon')->first()) {
+            $coupon = Coupon::create([
+                'amount_off' => abs($coupon->getPriceGross()) * 100,
+                'duration' => 'once',
+                'currency' => config('shop.currency.code'),
+            ]);
+
+            Arr::set($data, 'discounts', [
+                ['coupon' => "{$coupon->id}"]
+            ]);
+        }
+
+        return $data;
+    }
+
+    protected function createProductListing(OrderContract $order): array
+    {
+        return $order->items()
+            ->where('type', '!=', 'coupon')
+            ->get()
+            ->map(fn (OrderItemContract $orderItem) => [
+                'price_data' => [
+                    'currency' => config('shop.currency.code'),
+                    'product_data' => [
+                        'name' => $orderItem->getItemName(),
+                    ],
+                    'unit_amount' => $orderItem->getPriceGross() * 100,
+                ],
+                'quantity' => $orderItem->getQuantity(),
+            ])->all();
     }
 }
